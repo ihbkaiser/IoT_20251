@@ -32,6 +32,9 @@ const char *MQTT_HOST = "172.20.10.8";
 const int   MQTT_PORT = 1883;
 const char *DEVICE_ID = "demoDevice01";
 
+// Serial bridge mode: true for offline mqtt, false for online wifi
+static const bool USE_SERIAL_BRIDGE = true;
+
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
@@ -267,6 +270,7 @@ void updateTemperatures() {
 
 // --- WiFi/MQTT ---
 void ensureWiFi() {
+  if (USE_SERIAL_BRIDGE) return;
   if (WiFi.status() == WL_CONNECTED) return;
 
   WiFi.mode(WIFI_STA);
@@ -277,6 +281,7 @@ void ensureWiFi() {
 }
 
 void ensureMQTT() {
+  if (USE_SERIAL_BRIDGE) return;
   if (mqttClient.connected()) return;
 
   while (!mqttClient.connected()) {
@@ -295,6 +300,7 @@ String isoTimestamp() {
 }
 
 void publishJson(const char *topic, const char *payload) {
+  if (USE_SERIAL_BRIDGE) return;
   ensureMQTT();
   mqttClient.publish(topic, payload);
 }
@@ -338,7 +344,7 @@ void sessionStart() {
   beatAvg = 0;
   lastBeat = millis();
 
-  publishTelemetryRealtime();
+  publishTelemetryRealtime(true);
   lastMqttPublishMs = millis();
 
   Serial.print("[SESSION START] ");
@@ -420,7 +426,7 @@ void sessionStop(const char *reason) {
   }
 
   // emit contact=false once so backend can close the session
-  publishTelemetryRealtime();
+  publishTelemetryRealtime(false);
 
   Serial.print("[SESSION STOP] ");
   Serial.print(session.sessionId);
@@ -448,7 +454,7 @@ void sessionAddSample(uint16_t hr, uint8_t spo2v, uint8_t spo2ok) {
 }
 
 // telemetry payload
-void publishTelemetryRealtime() {
+void publishTelemetryRealtime(bool contact) {
   char topic[128];
   topicTelemetry(topic, sizeof(topic));
 
@@ -462,13 +468,19 @@ void publishTelemetryRealtime() {
   char payload[256];
   snprintf(
     payload, sizeof(payload),
-    "{\"ts\":\"%s\",\"hr\":%.1f,\"spo2\":%.1f,\"bodyTemp\":%.2f,\"ambientTemp\":%.2f}",
+    "{\"ts\":\"%s\",\"hr\":%.1f,\"spo2\":%.1f,\"bodyTemp\":%.2f,\"ambientTemp\":%.2f,\"contact\":%s}",
     ts.c_str(),
     hrOut,
     spo2Out,
     sanitizeFloat(lastBodyTemp, 0.0f),
-    sanitizeFloat(lastAmbientTemp, 0.0f)
+    sanitizeFloat(lastAmbientTemp, 0.0f),
+    contact ? "true" : "false"
   );
+
+  if (USE_SERIAL_BRIDGE) {
+    Serial.println(payload);
+    return;
+  }
 
   publishJson(topic, payload);
 }
@@ -499,12 +511,16 @@ void setup() {
   lastTempRequestMs = millis();
 
   // WiFi + NTP
-  ensureWiFi();
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  if (!USE_SERIAL_BRIDGE) {
+    ensureWiFi();
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  }
 
   // MQTT
-  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-  ensureMQTT();
+  if (!USE_SERIAL_BRIDGE) {
+    mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+    ensureMQTT();
+  }
 
   // MAX30102
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
@@ -530,9 +546,11 @@ void setup() {
 }
 
 void loop() {
-  ensureWiFi();
-  ensureMQTT();
-  mqttClient.loop();
+  if (!USE_SERIAL_BRIDGE) {
+    ensureWiFi();
+    ensureMQTT();
+    mqttClient.loop();
+  }
 
   // đọc FIFO
   particleSensor.check();
@@ -602,7 +620,7 @@ void loop() {
     // ===== Publish MQTT telemetry mỗi 30s =====
     if (lastMqttPublishMs == 0 || (nowMs - lastMqttPublishMs >= MQTT_PUBLISH_INTERVAL_MS)) {
       lastMqttPublishMs = nowMs;
-      publishTelemetryRealtime();
+      publishTelemetryRealtime(contact);
     }
 
     particleSensor.nextSample();

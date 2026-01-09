@@ -114,3 +114,17 @@ export const getMeasurementSessions = async (filter: {
   const limit = Math.min(filter.limit ?? 200, 1000);
   return MeasurementSession.find(query).sort({ startedAt: -1 }).limit(limit).lean();
 };
+
+export const createMeasurementSession = async (payload: {
+  deviceId: string;
+  startedAt: Date;
+  endedAt: Date;
+  durationSec: number;
+  avgHr?: number;
+  avgSpo2?: number;
+  avgBodyTemp?: number;
+  avgAmbientTemp?: number;
+  sampleCount: number;
+}) => {
+  return MeasurementSession.create(payload);
+};

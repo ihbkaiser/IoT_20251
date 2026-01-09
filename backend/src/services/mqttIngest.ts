@@ -5,7 +5,6 @@ import { env } from '../config/env.js';
 import { Device } from '../models/Device.js';
 import { createMeasurement } from './measurementService.js';
 import { bufferMeasurement } from './measurementDownsampleService.js';
-import { trackMeasurementSession } from './measurementSessionService.js';
 import { evaluateRules } from './alertService.js';
 import { log } from '../utils/logger.js';
 
@@ -83,8 +82,7 @@ export const startMqttIngest = (io: Server) => {
       const intervalMs = Math.max(env.MEASUREMENT_DOWNSAMPLE_SEC, 0) * 1000;
       const toStore = bufferMeasurement(measurement, intervalMs);
       if (toStore) {
-        const created = await createMeasurement(toStore);
-        await trackMeasurementSession(created);
+        await createMeasurement(toStore);
       }
     } catch (error) {
       log.error('Failed to process telemetry', error);

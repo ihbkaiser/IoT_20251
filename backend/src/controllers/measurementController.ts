@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { Device } from '../models/Device.js';
 import { getLatestMeasurement, getMeasurements } from '../services/measurementService.js';
-import { getMeasurementSessions } from '../services/measurementSessionService.js';
+import {
+  createMeasurementSession,
+  getMeasurementSessions
+} from '../services/measurementSessionService.js';
 
 const assertDeviceAccess = async (req: Request, deviceId: string) => {
   const device = await Device.findOne({ deviceId }).lean();
@@ -72,4 +75,43 @@ export const listMeasurementSessions = async (req: Request, res: Response) => {
   });
 
   return res.json(sessions);
+};
+
+export const createMeasurementSessionRecord = async (req: Request, res: Response) => {
+  const body = req.body as {
+    deviceId: string;
+    startedAt: string;
+    endedAt: string;
+    avgHr?: number;
+    avgSpo2?: number;
+    avgBodyTemp?: number;
+    avgAmbientTemp?: number;
+    sampleCount: number;
+  };
+
+  const access = await assertDeviceAccess(req, body.deviceId);
+  if (!access.allowed) {
+    return res.status(access.status).json({ message: access.message });
+  }
+
+  const startedAt = new Date(body.startedAt);
+  const endedAt = new Date(body.endedAt);
+  const durationSec = Math.max(
+    1,
+    Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)
+  );
+
+  const created = await createMeasurementSession({
+    deviceId: body.deviceId,
+    startedAt,
+    endedAt,
+    durationSec,
+    avgHr: body.avgHr,
+    avgSpo2: body.avgSpo2,
+    avgBodyTemp: body.avgBodyTemp,
+    avgAmbientTemp: body.avgAmbientTemp,
+    sampleCount: body.sampleCount
+  });
+
+  return res.status(201).json(created);
 };

@@ -1,7 +1,6 @@
 import { AlertEvent, IAlertEvent } from '../models/AlertEvent.js';
 import { AlertRule, IAlertRule, MetricKey } from '../models/AlertRule.js';
 import type { IDevice } from '../models/Device.js';
-import type { IMeasurement } from '../models/Measurement.js';
 import { isThresholdBreached } from './alertEvaluator.js';
 import type { HydratedDocument } from 'mongoose';
 
@@ -10,9 +9,18 @@ interface RuleState {
   lastTriggered?: number;
 }
 
+interface MeasurementLike {
+  deviceId: string;
+  ts: Date;
+  hr?: number;
+  spo2?: number;
+  bodyTemp?: number;
+  ambientTemp?: number;
+}
+
 const ruleState = new Map<string, RuleState>();
 
-const getMetricValue = (measurement: IMeasurement, metric: MetricKey) => {
+const getMetricValue = (measurement: MeasurementLike, metric: MetricKey) => {
   return measurement[metric];
 };
 
@@ -30,7 +38,7 @@ export const findRulesForDevice = async (device: IDevice) => {
   });
 };
 
-export const evaluateRules = async (device: IDevice, measurement: IMeasurement) => {
+export const evaluateRules = async (device: IDevice, measurement: MeasurementLike) => {
   const rules = await findRulesForDevice(device);
   const events: HydratedDocument<IAlertEvent>[] = [];
   const now = new Date(measurement.ts).getTime();
