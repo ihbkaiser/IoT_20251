@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import { env } from '../config/env.js';
 import { Device } from '../models/Device.js';
 import { createMeasurement } from './measurementService.js';
+import { bufferMeasurement } from './measurementDownsampleService.js';
+import { trackMeasurementSession } from './measurementSessionService.js';
 import { evaluateRules } from './alertService.js';
 import { log } from '../utils/logger.js';
 
@@ -12,7 +14,8 @@ const telemetrySchema = z.object({
   hr: z.number(),
   spo2: z.number(),
   bodyTemp: z.number(),
-  ambientTemp: z.number()
+  ambientTemp: z.number(),
+  contact: z.boolean().optional()
 });
 
 const parseTopic = (topic: string) => {
@@ -50,6 +53,7 @@ export const startMqttIngest = (io: Server) => {
       spo2: parsed.spo2,
       bodyTemp: parsed.bodyTemp,
       ambientTemp: parsed.ambientTemp,
+      contact: parsed.contact,
       raw: parsed
     };
 
@@ -63,18 +67,24 @@ export const startMqttIngest = (io: Server) => {
         { new: true, upsert: true }
       );
 
-      const created = await createMeasurement(measurement);
       const rooms: string[] = ['admins'];
       if (device?.ownerUserId) {
         rooms.push(`user:${device.ownerUserId.toString()}`);
       }
-      rooms.forEach((room) => io.to(room).emit('telemetry', { deviceId, measurement: created }));
+      rooms.forEach((room) => io.to(room).emit('telemetry', { deviceId, measurement }));
 
       if (device) {
-        const events = await evaluateRules(device, created);
+        const events = await evaluateRules(device, measurement);
         for (const event of events) {
           rooms.forEach((room) => io.to(room).emit('alert', { deviceId, event }));
         }
+      }
+
+      const intervalMs = Math.max(env.MEASUREMENT_DOWNSAMPLE_SEC, 0) * 1000;
+      const toStore = bufferMeasurement(measurement, intervalMs);
+      if (toStore) {
+        const created = await createMeasurement(toStore);
+        await trackMeasurementSession(created);
       }
     } catch (error) {
       log.error('Failed to process telemetry', error);

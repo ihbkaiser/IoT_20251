@@ -40,7 +40,8 @@ Payload example:
   "hr": 78,
   "spo2": 97,
   "bodyTemp": 36.7,
-  "ambientTemp": 28.3
+  "ambientTemp": 28.3,
+  "contact": true
 }
 ```
 
@@ -53,6 +54,8 @@ mosquitto_pub -h localhost -t health/demoDevice01/telemetry -m '{"ts":"2026-01-0
 **Auth**
 - `POST /auth/register` `{email,password}`
 - `POST /auth/login` `{email,password}` -> `{token}`
+- `POST /auth/forgot-password` `{email}`
+- `POST /auth/reset-password` `{token,password}`
 - `GET /auth/me`
 
 **Devices**
@@ -64,6 +67,7 @@ mosquitto_pub -h localhost -t health/demoDevice01/telemetry -m '{"ts":"2026-01-0
 **Measurements**
 - `GET /measurements?deviceId=...&from=...&to=...&limit=...`
 - `GET /measurements/latest?deviceId=...`
+- `GET /measurements/sessions?deviceId=...&from=...&to=...&limit=...`
 
 **Alerts**
 - `GET /alerts/rules`
@@ -103,3 +107,4 @@ npm run dev
 - Configure environment variables using `backend/.env.example` and `frontend/.env.example`.
 - Alerts are evaluated in realtime on telemetry ingestion; duration/cooldown are tracked in-memory.
 - Device offline status updates every `ALERT_CHECK_INTERVAL_MS`.
+- Measurement sessions require the device to publish `contact` (true when the finger is on the sensor).

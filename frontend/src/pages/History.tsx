@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api/client';
-import type { Device, Measurement, User } from '../types';
+import type { Device, Measurement, MeasurementSession, User } from '../types';
 import TelemetryChart from '../components/TelemetryChart';
+import MeasurementSessionChart from '../components/MeasurementSessionChart';
 
 const History = ({ user }: { user: User }) => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -9,6 +10,7 @@ const History = ({ user }: { user: User }) => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [data, setData] = useState<Measurement[]>([]);
+  const [sessions, setSessions] = useState<MeasurementSession[]>([]);
 
   const selectedDevice = useMemo(
     () => devices.find((device) => device.deviceId === selectedDeviceId),
@@ -46,8 +48,22 @@ const History = ({ user }: { user: User }) => {
     setData(data);
   };
 
+  const fetchSessions = async () => {
+    if (!selectedDeviceId || !from || !to) return;
+    const { data } = await api.get<MeasurementSession[]>('/measurements/sessions', {
+      params: {
+        deviceId: selectedDeviceId,
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+        limit: 200
+      }
+    });
+    setSessions(data);
+  };
+
   useEffect(() => {
     fetchHistory();
+    fetchSessions();
   }, [selectedDeviceId, from, to]);
 
   return (
@@ -87,12 +103,59 @@ const History = ({ user }: { user: User }) => {
             <input type="datetime-local" value={to} onChange={(event) => setTo(event.target.value)} />
           </label>
         </div>
-        <button className="primary" style={{ marginTop: 12 }} onClick={fetchHistory}>
+        <button
+          className="primary"
+          style={{ marginTop: 12 }}
+          onClick={() => {
+            fetchHistory();
+            fetchSessions();
+          }}
+        >
           Fetch History
         </button>
       </section>
 
       <TelemetryChart data={data} />
+
+      <MeasurementSessionChart sessions={sessions} />
+
+      <div className="card">
+        <h3>Measurement Sessions</h3>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Started</th>
+              <th>Ended</th>
+              <th>Avg HR</th>
+              <th>Avg SpO2</th>
+              <th>Avg Body Temp</th>
+              <th>Avg Ambient</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                  No measurement sessions in this range.
+                </td>
+              </tr>
+            ) : (
+              sessions.map((session) => (
+                <tr key={session._id || session.startedAt}>
+                  <td>{new Date(session.startedAt).toLocaleString()}</td>
+                  <td>{new Date(session.endedAt).toLocaleString()}</td>
+                  <td>{session.avgHr ?? '--'}</td>
+                  <td>{session.avgSpo2 ?? '--'}</td>
+                  <td>{session.avgBodyTemp ?? '--'}</td>
+                  <td>{session.avgAmbientTemp ?? '--'}</td>
+                  <td>{session.durationSec}s</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <div className="card">
         <h3>Measurements</h3>

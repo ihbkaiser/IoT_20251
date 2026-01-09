@@ -7,6 +7,7 @@ export interface IMeasurement extends Document {
   spo2?: number;
   bodyTemp?: number;
   ambientTemp?: number;
+  contact?: boolean;
   raw?: Record<string, unknown>;
   createdAt: Date;
 }
@@ -19,6 +20,7 @@ const MeasurementSchema = new Schema<IMeasurement>(
     spo2: { type: Number },
     bodyTemp: { type: Number },
     ambientTemp: { type: Number },
+    contact: { type: Boolean },
     raw: { type: Schema.Types.Mixed }
   },
   { timestamps: { createdAt: true, updatedAt: false } }

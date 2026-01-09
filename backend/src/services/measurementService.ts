@@ -1,12 +1,13 @@
 import { Measurement } from '../models/Measurement.js';
 
-interface MeasurementPayload {
+export interface MeasurementPayload {
   deviceId: string;
   ts: Date;
   hr?: number;
   spo2?: number;
   bodyTemp?: number;
   ambientTemp?: number;
+  contact?: boolean;
   raw?: Record<string, unknown>;
 }
 

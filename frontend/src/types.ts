@@ -20,6 +20,20 @@ export interface Measurement {
   spo2?: number;
   bodyTemp?: number;
   ambientTemp?: number;
+  contact?: boolean;
+}
+
+export interface MeasurementSession {
+  _id?: string;
+  deviceId: string;
+  startedAt: string;
+  endedAt: string;
+  durationSec: number;
+  avgHr?: number;
+  avgSpo2?: number;
+  avgBodyTemp?: number;
+  avgAmbientTemp?: number;
+  sampleCount: number;
 }
 
 export interface AlertRule {
